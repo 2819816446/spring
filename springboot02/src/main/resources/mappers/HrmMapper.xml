@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ailen.springboot02.mapper.HrmMapper">
+	<!-- 用户注册，插入用户 -->
+	<insert id="insertUserByAccountPassword" parameterType="com.ailen.springboot02.pojo.Hrm">
+		insert INTO hrm(account,password) values(#{account},#{password});
+	</insert>
+
+	<!-- 根据账号获取用户信息 -->
+	<select id="getHrmByAccount" parameterType="String" resultType="com.ailen.springboot02.pojo.Hrm">
+		select * from hrm where account = #{account}
+	</select>
+	
+	<!-- 获取所有用户信息 -->
+	<select id="getUsers" resultType="com.ailen.springboot02.pojo.Hrm">
+		select * from hrm where 1=1	
+	</select>
+	
+	<!-- 获取所有用户信息  分页获取 注意：多个参数，未使用对象封装在dao层（mapper接口）需要@param来定义接收-->
+	<select id="getUsersWithPagination"   resultType="com.ailen.springboot02.pojo.Hrm">
+		select * from hrm where 1=1	limit #{start},#{pageSize}
+	</select>	
+	
+	<!-- 根据id获取用户信息 Integer -->
+	<select id="getHrmById" parameterType="String" resultType="com.ailen.springboot02.pojo.Hrm"> 
+		select * from hrm where 1=1	and id = #{id}
+	</select>
+	
+	<!-- 获取hrm总数  -->
+	<select id="getUserCounts" resultType="Integer"> 
+		select count(*)  from hrm where 1=1
+	</select>
+
+	<!-- 模糊查询：hrm
+	注意：
+	1.因为#{...}解析成sql语句时候，会在变量外侧自动加单引号'  '，
+		所以这里 % 需要使用双引号"  "，不能使用单引号 '  '，不然会查不到任何结果
+	 	例如：like "%"#{keyWorld} "%"
+	 	完整：/*select *  from hrm where 1=1 and userName like "%"#{key}"%";*/
+
+	2. 或者使用：like concat("%",#{key},"%");
+	-->
+	<select id="getUserByKey" parameterType="String" resultType="com.ailen.springboot02.pojo.Hrm">
+
+		select *  from hrm where 1=1 and userName like concat("%",#{key},"%");
+
+	</select>
+
+	<!-- 根据id删除用户信息 -->
+	<delete id="deleteUserById" parameterType="String" > 
+		delete from hrm where 1=1	and id = #{id}
+	</delete>
+	
+	<!-- 根据id修改用户信息 -->
+	<update id="updateUserInfo" parameterType="String">
+		UPDATE hrm set userName = #{username}, account = #{account},`password`=#{password}  where id = #{id}
+	</update>
+
+
+	<!--使用resultMap返回一对多的数据-->
+	<resultMap id="getHrmCommentVoResult" type="com.ailen.springboot02.pojo.HrmCommentVo">
+		<id property="id" column="id"></id>
+		<result property="userName" column="userName"></result>
+		<result property="account" column="account"></result>
+		<result property="password" column="password"></result>
+		<!--这里的comments对应VO类里的 List<Comment> comments 参数   -->
+		<collection property="comments" ofType="com.ailen.springboot02.pojo.Comment">
+			<id property="commentId" column="cid"></id><!--id列-->
+			<result property="hrmId" column="hrm_id"></result>
+			<result property="title" column="title"></result>
+			<result property="content" column="content"></result>
+		</collection>
+	</resultMap>
+	<!--获取某个用户的评论列表. 注意：多余的注释代码可能会导致报错-->
+	<select id="getHrmCommentVo" parameterType="String" resultMap="getHrmCommentVoResult">
+		select
+			h.id ,
+			h.userName,
+			h.account,
+			h.password,
+			c.id as cid,
+			c.hrm_id,
+			c.title,
+			c.content
+		from hrm h inner join comment c  on h.id = c.hrm_id
+		where  h.id = #{id} ;
+
+	</select>
+
+
+	<!--使用resultMap返回一对多的数据,多条件：动态sql的使用 -->
+	<resultMap id="getHrmCommentVoResultByMulticondution" type="com.ailen.springboot02.pojo.HrmCommentVo">
+		<id property="id" column="id"></id>
+		<result property="userName" column="userName"></result>
+		<result property="account" column="account"></result>
+		<result property="password" column="password"></result>
+		<!--这里的comments对应VO类里的 List<Comment> comments 参数   -->
+		<collection property="comments" ofType="com.ailen.springboot02.pojo.Comment">
+			<id property="commentId" column="cid"></id><!--id列-->
+			<result property="hrmId" column="hrm_id"></result>
+			<result property="title" column="title"></result>
+			<result property="content" column="content"></result>
+		</collection>
+	</resultMap>
+	<!--获取某个用户的评论列表. 注意：多余的注释代码可能会导致报错  AND c.title = '给力'-->
+	<select id="getHrmCommentVoByMultiCondition" parameterType="String" resultMap="getHrmCommentVoResultByMulticondution">
+		select
+			h.id ,
+			h.userName,
+			h.account,
+			h.password,
+			c.id as cid,
+			c.hrm_id,
+			c.title,
+			c.content
+		from hrm h inner join comment c  on h.id = c.hrm_id
+
+		<where>
+			<if test="userName != null and userName != ''  ">
+				and h.userName like "%"#{userName}"%"
+			</if>
+
+			<if test="content != null and content != '' ">
+				and c.content like concat("%",#{content},"%")
+			</if>
+
+			<choose>
+				<when test="title != null and title != '' ">
+					AND c.title like concat("%",#{title},"%")
+				</when>
+				<otherwise>
+                   and 1=1
+				</otherwise>
+			</choose>
+
+			<if test="cidList != null and cidList.size() > 0 ">
+				AND c.id in
+				<foreach collection="cidList" item="item" open="(" separator="," close=")" >
+					#{item}
+				</foreach>
+			</if>
+
+		</where>
+
+
+	</select>
+
+
+	<!--插入一条 Hrm 数据-->
+	<!-- userGeneratedKeys和keyProperty属性可以让插入后对象获得本身自己的id
+	要返回自增主键：不能加 @Param("hrm")  参考：https://www.cnblogs.com/waterystone/p/5654300.html
+	通过对象的自动映射，直接取值。例如：#{userName}
+	-->
+	<insert id="insertOneHrm" parameterType="com.ailen.springboot02.pojo.Hrm"  useGeneratedKeys="true" keyProperty="id"  >
+		insert into hrm (userName,account,password)
+		values (#{userName},#{account},#{password})
+	</insert>
+
+	<!-- 批量插入 comment -->
+	<insert id="insertBatchComment" parameterType="java.util.List">
+		insert into comment (hrm_id,title,content) values
+		<!-- 注意foreach的语法,集合直接写list字符串，用item表示当前遍历的对象，结果集合通过使用逗号分隔使用separator属性 -->
+		<foreach collection="list" item="item" separator=",">
+			(
+				#{item.hrmId},#{item.title},#{item.content}
+			)
+		</foreach>
+	</insert>
+
+    <!-- 删除hrm -->
+    <delete id="deleteHrm" parameterType="int"  >
+      delete from hrm
+      <where>
+          <if  test=" id != null ">
+            id = #{id}
+          </if>
+
+      </where>
+
+    </delete>
+
+
+    <!-- 删除Comment -->
+    <delete id="deleteComment" parameterType="int" >
+        delete from comment
+        <where>
+            <if  test=" id != null ">
+                hrm_id = #{id}
+            </if>
+        </where>
+
+    </delete>
+
+    <!-- 根据传入的id,删除hrm的数据 -->
+    <update id="updateHrm" parameterType="int">
+        update hrm
+        <set>
+            <if test="userName != null">userName=#{userName},</if>
+            <if test="account != null">account=#{account},</if>
+            <if test="password != null">password=#{password}</if>
+        </set>
+        where id=#{id}
+    </update>
+	
+</mapper>
